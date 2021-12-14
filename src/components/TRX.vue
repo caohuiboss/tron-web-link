@@ -3,13 +3,17 @@
     <template #header>
       <div class="card-header">
         <span>你的地址：{{ ownerAddress || "请链接钱包" }}</span>
-        <el-button v-if="!ownerAddress" type="primary" @click="linkWallet"
-          >链接钱包</el-button
-        >
+        <el-button v-if="!ownerAddress" type="primary" @click="linkWallet">链接钱包</el-button>
       </div>
     </template>
     <el-form ref="form" :model="formData" label-width="260px">
-      <el-form-item label="代币合约">
+      <el-form-item label="转账币种">
+        <el-radio-group v-model="formData.currency">
+          <el-radio :label="0">TRX</el-radio>
+          <el-radio :label="1">代币</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item label="代币合约" v-if="formData.currency === 1">
         <el-input v-model="formData.contractAddress"></el-input>
       </el-form-item>
       <el-form-item label="转账方式">
@@ -28,9 +32,7 @@
         <el-input v-model="formData.receiveAddress" type="textarea"></el-input>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="onSubmit" :disabled="!ownerAddress"
-          >发放</el-button
-        >
+        <el-button type="primary" @click="onSubmit" :disabled="!ownerAddress">发放</el-button>
       </el-form-item>
     </el-form>
   </el-card>
@@ -38,7 +40,7 @@
 
 <script setup>
 import { ElMessage } from "element-plus";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, watch } from "vue";
 
 const CONTANS = 1000000;
 const ownerAddress = ref();
@@ -48,6 +50,7 @@ const formData = reactive({
   contractAddress: "TRTSKHtGuvX2rQeQLgtkfya1MYgidHmsmd",
   way: 1,
   num: 0.2,
+  currency: 1,
   receiveAddress: undefined,
 });
 
@@ -66,25 +69,19 @@ const dealAddresses = (str) =>
     .split(",")
     .filter((v) => v && v.trim());
 
-const onSubmit = async () => {
-  if (!formData.receiveAddress) {
-    ElMessage.warning("请填写转账地址");
-    return;
-  }
-  if (formData.way === 0) {
-    transactionToken(formData.receiveAddress);
-  } else {
-    const receiveAddress = dealAddresses(formData.receiveAddress);
-    for (let index = 0; index < receiveAddress.length; index++) {
-      await transactionToken(receiveAddress[index]);
-    }
-  }
-};
 
-const sleep = async (time = 5000) => {
-  return new Promise((resolve) => setTimeout(resolve, time));
-};
+// trx转账交易
+const transactionTrx = async (receiveAddress) => {
+  const tx = await tronWeb.value.transactionBuilder.sendTrx(
+    receiveAddress, formData.num * CONTANS, ownerAddress.value
+  );
+  const signedTx = await tronWeb.value.trx.sign(tx);
+  const broastTx = await tronWeb.value.trx.sendRawTransaction(signedTx);
+  console.log("TRX发放结果: ", receiveAddress);
+  console.log(broastTx)
+}
 
+// 代币转
 const transactionToken = async (receiveAddress) => {
   const parameter = [
     { type: "address", value: receiveAddress },
@@ -99,12 +96,44 @@ const transactionToken = async (receiveAddress) => {
   );
   var signedTx = await tronWeb.value.trx.sign(tx.transaction);
   var broastTx = await tronWeb.value.trx.sendRawTransaction(signedTx);
-  console.log("发放结果: ", receiveAddress);
+  console.log("代币发放结果: ", receiveAddress);
   console.log(broastTx)
   let contract = await tronWeb.value.contract().at(formData.contractAddress);
-  let result1 = await contract.decimals().call();
-  console.log(result1);
+  await contract.decimals().call();
 };
+
+// 判断转啥币
+const transaction = async (receiveAddress) => {
+  if (formData.currency === 0) {
+    await transactionTrx(receiveAddress);
+  } else {
+    await transactionToken(receiveAddress);
+  }
+}
+
+const onSubmit = async () => {
+  if (!formData.receiveAddress) {
+    ElMessage.warning("请填写转账地址");
+    return;
+  }
+  if (formData.way === 0) {
+    await transaction(formData.receiveAddress)
+  } else {
+    const receiveAddress = dealAddresses(formData.receiveAddress);
+    for (let index = 0; index < receiveAddress.length; index++) {
+      await transaction(receiveAddress[index]);
+    }
+  }
+};
+
+watch(() => [formData.currency, formData.way], () => {
+  clearFormData()
+})
+
+const clearFormData = () => {
+  // formData.contractAddress = undefined
+  formData.receiveAddress = undefined
+}
 
 onMounted(() => {
   if (window.tronWeb) {
