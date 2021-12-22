@@ -139,6 +139,7 @@ const onSubmit = async () => {
     }
   }
   console.log('币已经全部发完了')
+  ElMessage.success('币已经全部发完了')
 };
 
 watch(() => [formData.currency, formData.way], () => {
