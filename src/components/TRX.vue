@@ -57,7 +57,7 @@ const isResult = ref(true);
 const tronWeb = ref(null);
 
 const formData = reactive({
-  contractAddress: "TRTSKHtGuvX2rQeQLgtkfya1MYgidHmsmd",
+  contractAddress: undefined,
   way: 1,
   num: 0.2,
   currency: 1,
