@@ -31,8 +31,11 @@
       <el-form-item v-if="formData.way === 0" label="收款人地址(单个地址)">
         <el-input v-model="formData.receiveAddress"></el-input>
       </el-form-item>
+      <el-form-item v-else-if="formData.way === 1" label="收款人地址(多个地址换行)">
+        <el-input v-model="formData.receiveAddress" placeholder="多个地址换行" type="textarea"></el-input>
+      </el-form-item>
       <el-form-item v-else label="收款人地址(多个地址换行)">
-        <el-input v-model="formData.receiveAddress" type="textarea"></el-input>
+        <el-input v-model="formData.receiveAddress" placeholder="将txt文档里面内容复制进来  地址|数量" type="textarea"></el-input>
       </el-form-item>
       <el-form-item>
         <el-button
@@ -157,8 +160,8 @@ const onSubmit = async () => {
     } else {
       const receiveAddress = dealAddresses(formData.receiveAddress);
       for (let index = 0; index < receiveAddress.length; index++) {
-        const splitAddress = receiveAddress[index].split("\t");
-        await transactionToken(splitAddress[0], splitAddress[1]);
+        const splitAddress = receiveAddress[index].split("|");
+        await transactionToken(splitAddress[0], +splitAddress[1]);
       }
     }
     console.log("币已经全部发完了");
