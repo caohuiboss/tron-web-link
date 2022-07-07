@@ -31,11 +31,22 @@
       <el-form-item v-if="formData.way === 0" label="收款人地址(单个地址)">
         <el-input v-model="formData.receiveAddress"></el-input>
       </el-form-item>
-      <el-form-item v-else-if="formData.way === 1" label="收款人地址(多个地址换行)">
-        <el-input v-model="formData.receiveAddress" placeholder="多个地址换行" type="textarea"></el-input>
+      <el-form-item
+        v-else-if="formData.way === 1"
+        label="收款人地址(多个地址换行)"
+      >
+        <el-input
+          v-model="formData.receiveAddress"
+          placeholder="仅仅只需要多个地址换行"
+          type="textarea"
+        ></el-input>
       </el-form-item>
       <el-form-item v-else label="收款人地址(多个地址换行)">
-        <el-input v-model="formData.receiveAddress" placeholder="将txt文档里面内容复制进来  地址|数量" type="textarea"></el-input>
+        <el-input
+          v-model="formData.receiveAddress"
+          placeholder="地址|数量  多个换行"
+          type="textarea"
+        ></el-input>
       </el-form-item>
       <el-form-item>
         <el-button
@@ -83,10 +94,10 @@ const dealAddresses = (str) =>
     .filter((v) => v && v.trim());
 
 // trx转账交易
-const transactionTrx = async (receiveAddress) => {
+const transactionTrx = async (receiveAddress, num = 1) => {
   const tx = await tronWeb.value.transactionBuilder.sendTrx(
     receiveAddress,
-    formData.num * CONTANS,
+    num * CONTANS,
     ownerAddress.value
   );
   const signedTx = await tronWeb.value.trx.sign(tx);
@@ -100,7 +111,7 @@ const transactionTrx = async (receiveAddress) => {
  * @param {String} receiveAddress 需要接收的地址
  * @param {Number} num  如果有 num ，代表自定义数量转账
  */
-const transactionToken = async (receiveAddress, num = 0) => {
+const transactionToken = async (receiveAddress, num = 1) => {
   const parameter = [
     { type: "address", value: receiveAddress },
     {
@@ -137,15 +148,22 @@ const transactionToken = async (receiveAddress, num = 0) => {
 // 判断转代币还是TRX
 const transaction = async (receiveAddress) => {
   if (formData.currency === 0) {
-    await transactionTrx(receiveAddress);
+    await transactionTrx(receiveAddress, formData.num);
   } else {
-    await transactionToken(receiveAddress);
+    await transactionToken(receiveAddress, formData.num);
   }
 };
 
 const onSubmit = async () => {
   if (!formData.receiveAddress) {
     ElMessage.warning("请填写转账地址");
+    return;
+  }
+  if (!tronWeb.value.isAddress(formData.contractAddress)) {
+    ElNotification.error({
+      title: "错误",
+      message: "合约地址格式错误",
+    });
     return;
   }
   try {
@@ -155,13 +173,21 @@ const onSubmit = async () => {
     } else if (formData.way === 1) {
       const receiveAddress = dealAddresses(formData.receiveAddress);
       for (let index = 0; index < receiveAddress.length; index++) {
-        await transaction(receiveAddress[index]);
+        if (formData.currency === 0) {
+          await transaction(receiveAddress[index]);
+        } else {
+          await transactionToken(receiveAddress[index]);
+        }
       }
     } else {
       const receiveAddress = dealAddresses(formData.receiveAddress);
       for (let index = 0; index < receiveAddress.length; index++) {
         const splitAddress = receiveAddress[index].split("|");
-        await transactionToken(splitAddress[0], +splitAddress[1]);
+        if (formData.currency === 1) {
+          await transactionToken(splitAddress[0], +splitAddress[1]);
+        } else {
+          await transaction(splitAddress[0], +splitAddress[1]);
+        }
       }
     }
     console.log("币已经全部发完了");
