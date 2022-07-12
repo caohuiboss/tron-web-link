@@ -16,7 +16,7 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item label="代币合约" v-if="formData.currency === 1">
-        <el-input v-model="formData.contractAddress"></el-input>
+        <el-input v-model.trim="formData.contractAddress"></el-input>
       </el-form-item>
       <el-form-item label="转账方式">
         <el-radio-group v-model="formData.way">
@@ -29,7 +29,7 @@
         <el-input-number v-model="formData.num" :min="0"></el-input-number>
       </el-form-item>
       <el-form-item v-if="formData.way === 0" label="收款人地址(单个地址)">
-        <el-input v-model="formData.receiveAddress"></el-input>
+        <el-input v-model.trim="formData.receiveAddress"></el-input>
       </el-form-item>
       <el-form-item
         v-else-if="formData.way === 1"
@@ -50,6 +50,7 @@
       </el-form-item>
       <el-form-item>
         <el-button
+          v-loading.fullscreen.lock="fullscreenLoading"
           v-show="isResult"
           type="primary"
           @click="onSubmit"
@@ -69,6 +70,7 @@ const CONTANS = 1000000;
 const ownerAddress = ref();
 const isResult = ref(true);
 const tronWeb = ref(null);
+const fullscreenLoading = ref(false);
 
 const formData = reactive({
   contractAddress: undefined,
@@ -168,6 +170,7 @@ const onSubmit = async () => {
   }
   try {
     isResult.value = false;
+    fullscreenLoading.value = true
     if (formData.way === 0) {
       await transaction(formData.receiveAddress);
     } else if (formData.way === 1) {
@@ -200,6 +203,7 @@ const onSubmit = async () => {
     console.error(error);
   } finally {
     isResult.value = true;
+    fullscreenLoading.value = false;
   }
 };
 
