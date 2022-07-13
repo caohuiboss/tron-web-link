@@ -3,9 +3,12 @@
     <template #header>
       <div class="card-header">
         <span>你的地址：{{ ownerAddress || "请链接钱包" }}</span>
-        <el-button v-if="!ownerAddress" type="primary" @click="linkWallet"
-          >链接钱包</el-button
-        >
+        <el-space>
+          <el-button @click="reload">刷新页面</el-button>
+          <el-button v-if="!ownerAddress" type="primary" @click="linkWallet"
+            >链接钱包</el-button
+          >
+        </el-space>
       </div>
     </template>
     <el-form ref="form" :model="formData" label-width="260px">
@@ -16,17 +19,44 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item label="代币合约" v-if="formData.currency === 1">
-        <el-input v-model.trim="formData.contractAddress"></el-input>
+        <el-input
+          placeholder="请输入合法的代币地址"
+          v-model.trim="formData.contractAddress"
+        ></el-input>
       </el-form-item>
+      <!-- <el-form-item label="代币精度" v-if="formData.currency === 1">
+        <el-input-number
+          placeholder="请输入代币精度"
+          :min="1"
+          :max="18"
+          :precision="0"
+          v-model="formData.precision"
+        />
+        <el-tooltip content="精度请填写1-18 可保证代币转账数量正确">
+          <el-tag class="ml-2" type="warning">注意</el-tag>
+        </el-tooltip>
+      </el-form-item> -->
       <el-form-item label="转账方式">
-        <el-radio-group v-model="formData.way">
-          <el-radio :label="0">单个转账</el-radio>
-          <el-radio :label="1">批量转账</el-radio>
-          <el-radio :label="2">不同数量批量转账</el-radio>
-        </el-radio-group>
+        <div class="card-header">
+          <el-radio-group v-model="formData.way">
+            <el-radio :label="0">单个转账</el-radio>
+            <el-radio :label="1">批量转账</el-radio>
+            <el-radio :label="2">不同数量批量转账</el-radio>
+          </el-radio-group>
+          <el-link
+            type="primary"
+            href="/txt/template.txt"
+            download="不同数量批量转账模板.txt"
+            target="_blank"
+            >不同数量批量转账模板</el-link
+          >
+        </div>
       </el-form-item>
       <el-form-item label="转账数量" v-if="formData.way !== 2">
-        <el-input-number v-model="formData.num" :min="0"></el-input-number>
+        <el-input-number
+          v-model="formData.num"
+          :min="0"
+        ></el-input-number>
       </el-form-item>
       <el-form-item v-if="formData.way === 0" label="收款人地址(单个地址)">
         <el-input v-model.trim="formData.receiveAddress"></el-input>
@@ -38,15 +68,20 @@
         <el-input
           v-model="formData.receiveAddress"
           placeholder="仅仅只需要多个地址换行"
+          autosize
           type="textarea"
         ></el-input>
       </el-form-item>
       <el-form-item v-else label="收款人地址(多个地址换行)">
         <el-input
           v-model="formData.receiveAddress"
-          placeholder="地址|数量  多个换行"
+          placeholder="地址|数量  多个换行 可以从模板中复制过来"
+          autosize
           type="textarea"
         ></el-input>
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="formData.remark" placeholder="请输入备注"></el-input>
       </el-form-item>
       <el-form-item>
         <el-button
@@ -57,6 +92,13 @@
           :disabled="!ownerAddress"
           >发放</el-button
         >
+      </el-form-item>
+      <el-form-item>
+        <el-table :data="tableData" style="width: 100%">
+          <el-table-column prop="receiveAddress" label="地址" width="180" />
+          <el-table-column prop="num" label="数量" width="180" />
+          <el-table-column prop="result" label="发送结果" />
+        </el-table>
       </el-form-item>
     </el-form>
   </el-card>
@@ -71,12 +113,15 @@ const ownerAddress = ref();
 const isResult = ref(true);
 const tronWeb = ref(null);
 const fullscreenLoading = ref(false);
+const tableData = ref([]);
 
 const formData = reactive({
   contractAddress: undefined,
   way: 1,
   num: 0.2,
   currency: 1,
+  remark: "",
+  precision: 1,
   receiveAddress: undefined,
 });
 
@@ -102,7 +147,12 @@ const transactionTrx = async (receiveAddress, num = 1) => {
     num * CONTANS,
     ownerAddress.value
   );
-  const signedTx = await tronWeb.value.trx.sign(tx);
+  const unsignedTransaction = await tronWeb.transactionBuilder.addUpdateData(
+    tx,
+    formData.remark,
+    "utf-8"
+  );
+  const signedTx = await tronWeb.value.trx.sign(unsignedTransaction);
   const broastTx = await tronWeb.value.trx.sendRawTransaction(signedTx);
   console.log("TRX发放结果: ", receiveAddress);
   console.log(broastTx);
@@ -111,17 +161,16 @@ const transactionTrx = async (receiveAddress, num = 1) => {
 /**
  * 代币转账
  * @param {String} receiveAddress 需要接收的地址
- * @param {Number} num  如果有 num ，代表自定义数量转账
+ * @param {Number} num 需要转账的数量
  */
-const transactionToken = async (receiveAddress, num = 1) => {
+const transactionToken = async (receiveAddress, num) => {
   const parameter = [
     { type: "address", value: receiveAddress },
     {
       type: "uint256",
-      value: num ? parseInt(num * CONTANS) : formData.num * CONTANS,
+      value: num * CONTANS,
     },
   ];
-
   const tx = await tronWeb.value.transactionBuilder.triggerSmartContract(
     formData.contractAddress,
     "transfer(address,uint256)",
@@ -129,7 +178,11 @@ const transactionToken = async (receiveAddress, num = 1) => {
     parameter,
     ownerAddress.value
   );
-
+  await tronWeb.value.transactionBuilder.addUpdateData(
+    tx.transaction,
+    formData.remark,
+    "utf-8"
+  );
   const signedTx = await tronWeb.value.trx.sign(tx.transaction);
   const broastTx = await tronWeb.value.trx.sendRawTransaction(signedTx);
   const contract = await tronWeb.value.contract().at(formData.contractAddress);
@@ -137,6 +190,11 @@ const transactionToken = async (receiveAddress, num = 1) => {
 
   const a = "background: #606060; color: #fff;";
   const b = "background: #1475B2; color: #fff;";
+  tableData.push({
+    receiveAddress,
+    num: num || formData.num,
+    result: broastTx.result ? "成功" : "失败",
+  });
   console.log(
     ` %c 地址: ${receiveAddress} %c 数量: ${num || formData.num} %c 结果: ${
       broastTx.result || broastTx.code
@@ -170,7 +228,7 @@ const onSubmit = async () => {
   }
   try {
     isResult.value = false;
-    fullscreenLoading.value = true
+    fullscreenLoading.value = true;
     if (formData.way === 0) {
       await transaction(formData.receiveAddress);
     } else if (formData.way === 1) {
@@ -179,17 +237,19 @@ const onSubmit = async () => {
         if (formData.currency === 0) {
           await transaction(receiveAddress[index]);
         } else {
-          await transactionToken(receiveAddress[index]);
+          await transactionToken(receiveAddress[index], formData.num);
         }
       }
     } else {
       const receiveAddress = dealAddresses(formData.receiveAddress);
       for (let index = 0; index < receiveAddress.length; index++) {
         const splitAddress = receiveAddress[index].split("|");
-        if (formData.currency === 1) {
-          await transactionToken(splitAddress[0], +splitAddress[1]);
-        } else {
-          await transaction(splitAddress[0], +splitAddress[1]);
+        if (splitAddress.length === 2) {
+          if (formData.currency === 1) {
+            await transactionToken(splitAddress[0], +splitAddress[1]);
+          } else {
+            await transaction(splitAddress[0], +splitAddress[1]);
+          }
         }
       }
     }
@@ -218,6 +278,19 @@ const clearFormData = () => {
   formData.receiveAddress = undefined;
 };
 
+// 生成长度
+function padWithZeros(number = 1, length = 1) {
+  let str = "1";
+  for (let index = 0; index < length; index++) {
+    str += "0";
+  }
+  return number * str;
+}
+
+const reload = () => {
+  window.location.reload();
+};
+
 onMounted(() => {
   if (window.tronWeb) {
     tronWeb.value = window.tronWeb;
@@ -242,5 +315,9 @@ onMounted(() => {
 
 .box-card {
   width: 480px;
+}
+
+.ml-2 {
+  margin-left: 10px;
 }
 </style>
