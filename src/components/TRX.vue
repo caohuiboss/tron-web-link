@@ -53,10 +53,7 @@
         </div>
       </el-form-item>
       <el-form-item label="转账数量" v-if="formData.way !== 2">
-        <el-input-number
-          v-model="formData.num"
-          :min="0"
-        ></el-input-number>
+        <el-input-number v-model="formData.num" :min="0"></el-input-number>
       </el-form-item>
       <el-form-item v-if="formData.way === 0" label="收款人地址(单个地址)">
         <el-input v-model.trim="formData.receiveAddress"></el-input>
@@ -219,7 +216,10 @@ const onSubmit = async () => {
     ElMessage.warning("请填写转账地址");
     return;
   }
-  if (!tronWeb.value.isAddress(formData.contractAddress)) {
+  if (
+    formData.currency === 1 &&
+    !tronWeb.value.isAddress(formData.contractAddress)
+  ) {
     ElNotification.error({
       title: "错误",
       message: "合约地址格式错误",
