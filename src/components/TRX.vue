@@ -154,7 +154,9 @@ const contractAddressBlur = async () => {
       );
       if (contract.decimals) {
         const decimals = await contract.decimals().call();
-        formData.precision = +tronWeb.value.toDecimal(decimals._hex) || 18;
+        formData.precision = Number.isFinite(+decimals)
+          ? +decimals
+          : +tronWeb.value.toDecimal(decimals._hex) || 18;
       } else {
         ElNotification.error({
           title: "警告",
