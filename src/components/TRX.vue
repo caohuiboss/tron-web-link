@@ -24,6 +24,18 @@
           v-model.trim="formData.contractAddress"
         ></el-input>
       </el-form-item>
+      <el-form-item label="代币精度" v-if="formData.currency === 1">
+        <el-input-number
+          placeholder="请输入代币精度"
+          :min="1"
+          :max="18"
+          :precision="0"
+          v-model="formData.precision"
+        />
+        <el-tooltip content="精度请填写 1-18 可保证代币转账数量与填写的数量一致 精度可在钱包查看代币详情获取">
+          <el-tag class="ml-2" type="warning">触碰这里 特别注意</el-tag>
+        </el-tooltip>
+      </el-form-item>
       <el-form-item label="转账方式">
         <div class="card-header">
           <el-radio-group v-model="formData.way">
@@ -80,7 +92,7 @@
       </el-form-item>
       <el-form-item>
         <el-table :data="tableData" style="width: 100%">
-          <el-table-column prop="receiveAddress" label="地址" />
+          <el-table-column prop="receiveAddress" label="地址" width="180" />
           <el-table-column prop="num" label="数量" width="180" />
           <el-table-column prop="result" label="发送结果" />
         </el-table>
@@ -106,7 +118,7 @@ const formData = reactive({
   num: 0.2,
   currency: 1,
   remark: "",
-  precision: 1,
+  precision: 18,
   receiveAddress: undefined,
 });
 
@@ -153,7 +165,7 @@ const transactionToken = async (receiveAddress, num) => {
     { type: "address", value: receiveAddress },
     {
       type: "uint256",
-      value: num * CONTANS,
+      value: tronWeb.value.toBigNumber(num * (10 ** formData.precision)).toString(10),
     },
   ];
   const tx = await tronWeb.value.transactionBuilder.triggerSmartContract(
