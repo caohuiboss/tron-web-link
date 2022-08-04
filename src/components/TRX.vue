@@ -22,6 +22,7 @@
         <el-input
           placeholder="请输入合法的代币地址"
           v-model.trim="formData.contractAddress"
+          @blur="contractAddressBlur"
         ></el-input>
       </el-form-item>
       <el-form-item label="代币精度" v-if="formData.currency === 1">
@@ -32,9 +33,11 @@
           :precision="0"
           v-model="formData.precision"
         />
-        <el-tooltip content="精度请填写 1-18 可保证代币转账数量与填写的数量一致 精度可在钱包查看代币详情获取">
-          <el-tag class="ml-2" type="warning">触碰这里 特别注意</el-tag>
-        </el-tooltip>
+        <div>
+          精度请填写 1-18 可保证代币转账数量与填写的数量一致
+          我们会自动读取代币合约的ABI获取精度 如果没有ABI
+          需要你手动确认填写(精度可在钱包查看代币详情获取)
+        </div>
       </el-form-item>
       <el-form-item label="转账方式">
         <div class="card-header">
@@ -131,6 +134,43 @@ const linkWallet = () => {
   }
 };
 
+const contractAddressBlur = async () => {
+  if (formData.contractAddress) {
+    if (
+      formData.currency === 1 &&
+      !tronWeb.value.isAddress(formData.contractAddress)
+    ) {
+      ElNotification.error({
+        title: "错误",
+        message: "合约地址格式错误",
+      });
+      return;
+    }
+    const res = await tronWeb.value.trx.getContract(formData.contractAddress);
+    if (res?.abi) {
+      const contract = await tronWeb.value.contract(
+        res.abi.entrys,
+        formData.contractAddress
+      );
+      if (contract.decimals) {
+        const decimals = await contract.decimals().call();
+        formData.precision = +tronWeb.value.toDecimal(decimals._hex) || 18;
+      } else {
+        ElNotification.error({
+          title: "警告",
+          message: "该代币未暴露获取精度方法 精度需你手动确认填写",
+        });
+        formData.precision = 18;
+      }
+    } else {
+      ElNotification.error({
+        title: "警告",
+        message: "未查询到该代币的ABI 精度需你手动确认填写",
+      });
+    }
+  }
+};
+
 const dealAddresses = (str) =>
   str
     .replace(/(\r\n)|(\n)/g, ",")
@@ -165,7 +205,9 @@ const transactionToken = async (receiveAddress, num) => {
     { type: "address", value: receiveAddress },
     {
       type: "uint256",
-      value: tronWeb.value.toBigNumber(num * (10 ** formData.precision)).toString(10),
+      value: tronWeb.value
+        .toBigNumber(num * 10 ** formData.precision)
+        .toString(10),
     },
   ];
   const tx = await tronWeb.value.transactionBuilder.triggerSmartContract(
