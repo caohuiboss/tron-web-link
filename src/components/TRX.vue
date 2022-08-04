@@ -24,18 +24,6 @@
           v-model.trim="formData.contractAddress"
         ></el-input>
       </el-form-item>
-      <!-- <el-form-item label="代币精度" v-if="formData.currency === 1">
-        <el-input-number
-          placeholder="请输入代币精度"
-          :min="1"
-          :max="18"
-          :precision="0"
-          v-model="formData.precision"
-        />
-        <el-tooltip content="精度请填写1-18 可保证代币转账数量正确">
-          <el-tag class="ml-2" type="warning">注意</el-tag>
-        </el-tooltip>
-      </el-form-item> -->
       <el-form-item label="转账方式">
         <div class="card-header">
           <el-radio-group v-model="formData.way">
@@ -92,7 +80,7 @@
       </el-form-item>
       <el-form-item>
         <el-table :data="tableData" style="width: 100%">
-          <el-table-column prop="receiveAddress" label="地址" width="180" />
+          <el-table-column prop="receiveAddress" label="地址" />
           <el-table-column prop="num" label="数量" width="180" />
           <el-table-column prop="result" label="发送结果" />
         </el-table>
@@ -187,7 +175,7 @@ const transactionToken = async (receiveAddress, num) => {
 
   const a = "background: #606060; color: #fff;";
   const b = "background: #1475B2; color: #fff;";
-  tableData.push({
+  tableData.value.push({
     receiveAddress,
     num: num || formData.num,
     result: broastTx.result ? "成功" : "失败",
