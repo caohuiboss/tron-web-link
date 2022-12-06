@@ -186,7 +186,7 @@ const transactionTrx = async (receiveAddress, num = 1) => {
     num * CONTANS,
     ownerAddress.value
   );
-  const unsignedTransaction = await tronWeb.transactionBuilder.addUpdateData(
+  const unsignedTransaction = await tronWeb.value.transactionBuilder.addUpdateData(
     tx,
     formData.remark,
     "utf-8"
