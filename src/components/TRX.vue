@@ -1,28 +1,32 @@
 <template>
-  <a-spin :spinning="fullscreenLoading">
-    <a-card>
-      <template #title>
-        <div class="card-header">
-          <span>{{
-            (ownerAddress && uzipAddress(ownerAddress)) || "请链接钱包"
-          }}</span>
-          <a-space>
-            <a-tooltip placement="right">
-              <template #title>
-                每转一个地址就给接收地址增加一点积分，每个地址转账需要一积分
-              </template>
-              <a-space v-if="ownerAddress">
-                <DollarOutlined class="shake" />
-                <span class="rate">10086 积分</span>
-              </a-space>
-            </a-tooltip>
-
-            <a-button v-if="!ownerAddress" type="primary" @click="linkWallet"
-              >链接钱包</a-button
-            >
-          </a-space>
-        </div>
-      </template>
+  <!-- <a-spin :spinning="fullscreenLoading"> -->
+  <div class="card-header">
+    <span class="title">BatchSender</span>
+    <a-space>
+      <a-button
+        v-if="!ownerAddress"
+        type="primary"
+        shape="round"
+        class="base-button"
+        @click="linkWallet"
+        >链接钱包</a-button
+      >
+      <a-tooltip placement="right">
+        <template #title>
+          每转一个地址就给接收地址增加一点积分，每个地址转账需要一积分
+        </template>
+        <a-space v-if="ownerAddress" class="radius-box">
+          <div class="ownerAddress" v-if="ownerAddress">
+            {{ uzipAddress(ownerAddress) }}
+          </div>
+          <span class="rate">10086 积分</span>
+          <DollarOutlined class="shake" />
+        </a-space>
+      </a-tooltip>
+    </a-space>
+  </div>
+  <div class="page-wrapper">
+    <div class="form-wrapper">
       <a-form layout="vertical" ref="form" :model="formData">
         <a-form-item label="转账币种">
           <a-radio-group v-model:value="formData.currency">
@@ -62,7 +66,7 @@
         </a-form-item>
         <a-form-item label="转账方式">
           <a-radio-group v-model:value="formData.way">
-            <a-radio :value="0">单个转账</a-radio>
+            <!-- <a-radio :value="0">单个转账</a-radio> -->
             <a-radio :value="1">批量转账</a-radio>
             <a-radio :value="2">不同数量批量转账</a-radio>
           </a-radio-group>
@@ -90,18 +94,26 @@
           v-else-if="formData.way === 1"
           label="收款人地址(多个地址换行)"
         >
-          <a-textarea
-            v-model:value="formData.receiveAddress"
+          <codemirror
+            v-model="formData.receiveAddress"
             placeholder="仅仅只需要多个地址换行"
-            :autosize="{ minRows: 4 }"
-          ></a-textarea>
+            :style="{ height: '300px' }"
+            :autofocus="true"
+            :extensions="[oneDark]"
+            :indent-with-tab="true"
+            :tab-size="2"
+          />
         </a-form-item>
         <a-form-item v-else label="收款人地址(多个地址换行)">
-          <a-textarea
-            v-model:value="formData.receiveAddress"
+          <codemirror
+            v-model="formData.receiveAddress"
             placeholder="地址|数量  多个换行 可以从模板中复制过来"
-            :autosize="{ minRows: 4 }"
-          ></a-textarea>
+            :style="{ height: '300px' }"
+            :autofocus="true"
+            :extensions="[oneDark]"
+            :indent-with-tab="true"
+            :tab-size="2"
+          />
         </a-form-item>
         <a-form-item label="备注">
           <a-input
@@ -112,72 +124,141 @@
         <a-form-item style="text-align: center">
           <div class="button-wrapper">
             <a-button
-              v-show="isResult"
+              v-show="isResult || ownerAddress"
               type="primary"
-              class="button-send"
+              size="large"
+              class="base-button button-send"
               @click="onSubmit"
               :disabled="!ownerAddress"
-              >发放</a-button
+              :loading="fullscreenLoading"
+              >发送</a-button
             >
-            <a-button class="button-send" @click="reload">刷新页面</a-button>
+            <!-- <a-button class="button-send" @click="reload">刷新页面</a-button> -->
           </div>
         </a-form-item>
-        <a-form-item v-if="tableData.length > 0">
-          <a-table size="small" :columns="columns" :data-source="tableData">
-          </a-table>
-        </a-form-item>
+        <!-- <a-form-item v-if="tableData.length > 0">
+            <a-table size="small" :columns="columns" :data-source="tableData">
+            </a-table>
+          </a-form-item> -->
       </a-form>
-    </a-card>
-    <template #tip>
-      <p>发放中，请耐心等待</p>
-      <a-table bordered size="small" :columns="columns" :data-source="tableData">
-      </a-table>
-    </template>
-  </a-spin>
+    </div>
+  </div>
 </template>
 
-<script setup>
+<script setup lang="jsx">
 import { notification, message } from "ant-design-vue";
 import { QuestionCircleFilled, DollarOutlined } from "@ant-design/icons-vue";
-import { onMounted, reactive, ref, watch } from "vue";
+import { onMounted, reactive, ref, watch, h } from "vue";
+import { Codemirror } from "vue-codemirror";
+import { oneDark } from "@codemirror/theme-one-dark";
 
 const CONTANS = 1000000;
 const ownerAddress = ref();
-const isResult = ref(true);
+const isResult = ref(false);
 const tronWeb = ref(null);
 const fullscreenLoading = ref(false);
-const tableData = ref([]);
+const tableData = ref([
+  {
+    receiveAddress: "地址",
+    num: "数量",
+    result: "结果",
+  },
+]);
 
 const formData = reactive({
   contractAddress: undefined,
   way: 1,
-  num: 0.2,
-  currency: 1,
+  num: 0.1,
+  currency: 0,
   remark: "",
   precision: 18,
   receiveAddress: undefined,
 });
 
-const columns = ref([
-  {
-    title: "地址",
-    align: "center",
-    dataIndex: "receiveAddress",
-    customRender: ({ record }) =>
-      record.receiveAddress && uzipAddress(record.receiveAddress),
-  },
-  {
-    title: "数量",
-    align: "center",
-    dataIndex: "num",
-  },
-  {
-    title: "发送结果",
-    align: "center",
-    dataIndex: "result",
-  },
-]);
+// 提交
+const onSubmit = async () => {
+  if (!formData.receiveAddress) {
+    message.warning("请填写转账地址");
+    return;
+  }
+  if (
+    formData.currency === 1 &&
+    !tronWeb.value.isAddress(formData.contractAddress)
+  ) {
+    message.error("请填写正确的合约地址");
+    return;
+  }
+  const hide = message.loading("正在发送代币中 请耐心等待", 0);
+  try {
+    isResult.value = false;
+    fullscreenLoading.value = true;
+    if (formData.way === 0) {
+      await transaction(formData.receiveAddress);
+    } else if (formData.way === 1) {
+      const receiveAddress = dealAddresses(formData.receiveAddress) || [];
+      for (let index = 0; index < receiveAddress.length; index++) {
+        const address = receiveAddress[index];
+        if (!tronWeb.value.isAddress(address)) {
+          message.error("请填写合法接收地址");
+          return;
+        }
+      }
+      if (receiveAddress.includes(ownerAddress.value)) {
+        message.error("不能给自己转账");
+        return;
+      }
+      for (let index = 0; index < receiveAddress.length; index++) {
+        if (formData.currency === 0) {
+          await transaction(receiveAddress[index]);
+        } else {
+          await transactionToken(receiveAddress[index], formData.num);
+        }
+      }
+    } else {
+      const receiveAddress = dealAddresses(formData.receiveAddress);
+      for (let index = 0; index < receiveAddress.length; index++) {
+        const splitAddress = receiveAddress[index].split("|");
+        if (splitAddress.length === 2) {
+          if (formData.currency === 1) {
+            await transactionToken(splitAddress[0], +splitAddress[1]);
+          } else {
+            await transaction(splitAddress[0], +splitAddress[1]);
+          }
+        }
+      }
+    }
+    notification.open({
+      message: "发币结果",
+      description: () =>
+        tableData.value.map((item, i) => {
+          return h(
+            "div",
+            {
+              class: "result-title",
+            },
+            [
+              h(
+                "div",
+                { class: "result-item" },
+                i === 0 ? item.receiveAddress : uzipAddress(item.receiveAddress)
+              ),
+              h("div", { class: "result-item" }, item.num),
+              h("div", { class: "result-item" }, item.result),
+            ]
+          );
+        }),
+      duration: 0,
+    });
+  } catch (error) {
+    message.error(error);
+  } finally {
+    isResult.value = true;
+    fullscreenLoading.value = false;
+    hide();
+  }
+};
 
+// 链接钱包
 const linkWallet = () => {
   if (window.tronWeb) {
     tronWeb.value = window.tronWeb;
@@ -187,16 +268,14 @@ const linkWallet = () => {
   }
 };
 
+// 查询合约
 const contractAddressBlur = async () => {
   if (formData.contractAddress) {
     if (
       formData.currency === 1 &&
       !tronWeb.value.isAddress(formData.contractAddress)
     ) {
-      notification.error({
-        message: "错误",
-        description: "合约地址格式错误",
-      });
+      message.error("请填写正确的合约地址");
       return;
     }
     const res = await tronWeb.value.trx.getContract(formData.contractAddress);
@@ -211,21 +290,16 @@ const contractAddressBlur = async () => {
           ? +decimals
           : +tronWeb.value.toDecimal(decimals._hex) || 18;
       } else {
-        notification.error({
-          message: "警告",
-          description: "该代币未暴露获取精度方法 精度需你手动确认填写",
-        });
+        message.error("该代币未暴露获取精度方法 精度需你手动确认填写");
         formData.precision = 18;
       }
     } else {
-      notification.error({
-        message: "警告",
-        description: "未查询到该代币的ABI 精度需你手动确认填写",
-      });
+      message.error("未查询到该代币的ABI 精度需你手动确认填写");
     }
   }
 };
 
+// 处理地址
 const dealAddresses = (str) =>
   str
     .replace(/(\r\n)|(\n)/g, ",")
@@ -324,75 +398,23 @@ const transaction = async (receiveAddress) => {
   }
 };
 
-const onSubmit = async () => {
-  if (!formData.receiveAddress) {
-    message.warning("请填写转账地址");
-    return;
-  }
-  if (
-    formData.currency === 1 &&
-    !tronWeb.value.isAddress(formData.contractAddress)
-  ) {
-    notification.error({
-      message: "错误",
-      description: "合约地址格式错误",
-    });
-    return;
-  }
-  try {
-    isResult.value = false;
-    fullscreenLoading.value = true;
-    if (formData.way === 0) {
-      await transaction(formData.receiveAddress);
-    } else if (formData.way === 1) {
-      const receiveAddress = dealAddresses(formData.receiveAddress);
-      for (let index = 0; index < receiveAddress.length; index++) {
-        if (formData.currency === 0) {
-          await transaction(receiveAddress[index]);
-        } else {
-          await transactionToken(receiveAddress[index], formData.num);
-        }
-      }
-    } else {
-      const receiveAddress = dealAddresses(formData.receiveAddress);
-      for (let index = 0; index < receiveAddress.length; index++) {
-        const splitAddress = receiveAddress[index].split("|");
-        if (splitAddress.length === 2) {
-          if (formData.currency === 1) {
-            await transactionToken(splitAddress[0], +splitAddress[1]);
-          } else {
-            await transaction(splitAddress[0], +splitAddress[1]);
-          }
-        }
-      }
-    }
-    console.log("币已经全部发完了");
-    notification.open({
-      message: "发币结果",
-      description: "币已经全部发完了",
-      duration: 0,
-    });
-  } catch (error) {
-    console.error(error);
-  } finally {
-    isResult.value = true;
-    fullscreenLoading.value = false;
-  }
-};
-
+// 切割地址
 const uzipAddress = (str) => {
   if (!str) return "-";
   return str.substr(0, 8) + "..." + str.substr(-4, 4);
 };
 
+// 清空表单数据
 const clearFormData = () => {
   formData.receiveAddress = undefined;
 };
 
+// 刷新页面
 const reload = () => {
   window.location.reload();
 };
 
+// 监听表单数据变化
 watch(
   () => [formData.currency, formData.way],
   () => {
@@ -400,6 +422,7 @@ watch(
   }
 );
 
+// 初始化
 onMounted(() => {
   if (window.tronWeb) {
     tronWeb.value = window.tronWeb;
@@ -413,12 +436,71 @@ onMounted(() => {
 </script>
 
 <style>
+.ͼ1 .cm-scroller,
+.cm-placeholder {
+  font-family: Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
+}
+
+.ͼ1 .cm-line {
+  display: block;
+  padding: 0 2px 0 6px;
+}
+
+.page-wrapper {
+  width: 900px;
+  margin: 20px auto;
+  padding: 20px;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  background: rgba(36, 50, 100, 0.6);
+  backdrop-filter: blur(3px);
+  border-image-slice: 1;
+  border-image-source: linear-gradient(
+    92.7deg,
+    #a310fe 10.86%,
+    #19ee48 101.11%
+  );
+}
+
+@media screen and (max-width: 768px) {
+  .page-wrapper {
+    width: 96%;
+    padding: 20px;
+    margin: 20px auto;
+  }
+}
+
+.base-button {
+  background: linear-gradient(
+    90.87deg,
+    #a310fe -41.78%,
+    #b753f5 100%
+  ) !important;
+  /* box-shadow: 0px 3px 12px rgba(83, 100, 172, 0.5) !important; */
+  border-radius: 10px !important;
+  color: white !important;
+}
+
 .button-send {
-  width: 40%;
+  width: 55%;
 }
 
 .ant-form-item-label {
   font-weight: bold;
+}
+
+.ant-form-item-label > label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  height: 32px;
+  color: rgba(253, 253, 253, 1) !important;
+  font-size: 14px;
+}
+
+.ant-radio-group span {
+  color: rgba(253, 253, 253, 1) !important;
 }
 
 .card-header {
@@ -426,12 +508,56 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
+  position: sticky;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 10px 12px;
+  min-height: 52px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.loading-text {
+  font-size: 20px;
+  font-weight: bold;
+  color: #b753f5;
+}
+
+.ant-spin-nested-loading > div > .ant-spin {
+  min-height: 100vh !important;
+}
+
+.card-header > .title {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.radius-box {
+  border-radius: 20px;
+  border: 1px solid rgb(219, 219, 219);
+  padding: 4px 8px 4px 4px;
+}
+
+.ownerAddress {
+  border-radius: 20px;
+  padding: 0 8px;
+}
+
+.ant-input,
+.ant-input-number {
+  border-radius: 8px !important;
+  color: #e8e8e8 !important;
 }
 
 .button-wrapper {
   display: flex;
   justify-content: space-around;
   align-items: center;
+}
+
+.form-wrapper {
+  margin: 10px auto;
 }
 
 .text {
@@ -446,6 +572,25 @@ onMounted(() => {
   width: 480px;
 }
 
+.result-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  border: 1px solid rgb(235, 235, 235);
+  padding: 4px;
+  border-radius: 2px;
+}
+
+.result-item {
+  width: 30%;
+  text-align: center;
+}
+
+.result-item:nth-child(1) {
+  width: 40%;
+}
+
 .ml-2 {
   margin-left: 10px;
 }
@@ -456,6 +601,36 @@ onMounted(() => {
 
 .rate {
   font-size: 14px;
+  color: #fcfcfc;
+  font-weight: bold;
+}
+
+.ant-input {
+  background-color: #2e3057 !important;
+  height: 36px;
+  border: 1px solid rgba(53, 201, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.ant-input::placeholder {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.ant-input-number {
+  width: 100%;
+  background-color: #2e3057 !important;
+  border: 1px solid rgba(53, 201, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.ant-input-number-input {
+  height: 36px;
+}
+
+.ant-input-number-input::placeholder {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
 }
 
 @keyframes shake {
